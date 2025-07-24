@@ -16,6 +16,12 @@ type Client struct {
 	Bitfield bitfield.Bitfield
 }
 
+func (c *Client) SendHave(index int) error {
+	msg := message.FormatHave(index)
+	_, err := c.Conn.Write(msg.Serialize())
+	return err
+}
+
 func New(peer peers.Peer, peerID, infoHash [20]byte) (*Client, error) {
 	conn, err := net.DialTimeout("tcp", peer.String(), 3*time.Second)
 	if err != nil {
@@ -42,4 +48,10 @@ func (c *Client) Read() (*message.Message, error) {
 		return nil, err
 	}
 	return msg, nil
+}
+
+func (c *Client) SendRequest(index, begin, length int) error {
+	req := message.FormatRequest(index, begin, length)
+	_, err := c.Conn.Write(req.Serialize())
+	return err
 }

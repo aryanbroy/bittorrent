@@ -1,6 +1,9 @@
 package p2p
 
 import (
+	"bytes"
+	"crypto/sha1"
+	"fmt"
 	"log"
 	"time"
 
@@ -103,10 +106,21 @@ func attempDownloadPiece(c *client.Client, pw *pieceWork) ([]byte, error) {
 				if pw.length-state.requested < blockSize {
 					blockSize = pw.length - state.requested
 				}
-
+				err := c.SendRequest(pw.index, state.requested, blockSize)
+				if err != nil {
+					return nil, err
+				}
+				state.backlog++
+				state.requested += blockSize
 			}
 		}
+		err := state.readMessage()
+		if err != nil {
+			return nil, err
+		}
 	}
+
+	return state.buf, nil
 }
 
 func (t *Torrent) Download() ([]byte, error) {
@@ -171,4 +185,14 @@ func (t *Torrent) startDownloadWorker(peer peers.Peer, workQueue chan *pieceWork
 		c.SendHave(pw.index)
 		results <- &pieceResult{index: pw.index, buf: buf}
 	}
+}
+
+func checkIntegrity(pw *pieceWork, buf []byte) error {
+	hash := sha1.Sum(buf)
+	if !bytes.Equal(hash[:], pw.hash[:]) {
+		err := fmt.Errorf("Piece %v failed integrity check", pw.index)
+		return err
+	}
+
+	return nil
 }
