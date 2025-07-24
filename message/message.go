@@ -2,6 +2,7 @@ package message
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 	"log"
 )
@@ -64,4 +65,45 @@ func Read(r io.Reader) (*Message, error) {
 		ID:      messageID(messageBuf[0]),
 		Payload: messageBuf[1:],
 	}, nil
+}
+
+func ParseHave(msg *Message) (int, error) {
+	if msg.ID != MsgHave {
+		return 0, fmt.Errorf("expected id to be %v, got %v instead", MsgHave, msg.ID)
+	}
+
+	if len(msg.Payload) < 4 {
+		return 0, fmt.Errorf("expected payload length to be %v bytes, got %v bytes instead", 4, len(msg.Payload))
+	}
+
+	index := binary.BigEndian.Uint32(msg.Payload)
+	return int(index), nil
+}
+
+func ParsePiece(index int, buf []byte, msg *Message) (int, error) {
+	if msg.ID != MsgPiece {
+		return 0, fmt.Errorf("expected id to be %v, got %v instead", MsgPiece, msg.ID)
+	}
+
+	if len(msg.Payload) < 8 {
+		return 0, fmt.Errorf("payload too short. %d < 8", len(msg.Payload))
+	}
+
+	parsedIndex := int(binary.BigEndian.Uint32(msg.Payload[0:4]))
+	if parsedIndex != index {
+		return 0, fmt.Errorf("expected index %d, %d != %d", index, parsedIndex, index)
+	}
+
+	begin := int(binary.BigEndian.Uint32(msg.Payload[4:8]))
+	if begin >= len(msg.Payload) {
+		return 0, fmt.Errorf("data begin offset too large. %d >= %d", begin, len(msg.Payload))
+	}
+
+	data := msg.Payload[8:]
+	if begin+len(data) > len(buf) {
+		return 0, fmt.Errorf("data too long [%d], with offset %d and length %d", len(data), begin, len(buf))
+	}
+
+	copy(buf[begin:], data)
+	return len(data), nil
 }

@@ -5,12 +5,15 @@ import (
 	"net"
 	"time"
 
+	"github.com/aryanbroy/bittorrent/bitfield"
+	"github.com/aryanbroy/bittorrent/message"
 	"github.com/aryanbroy/bittorrent/peers"
 )
 
 type Client struct {
-	Conn   net.Conn
-	Choked bool
+	Conn     net.Conn
+	Choked   bool
+	Bitfield bitfield.Bitfield
 }
 
 func New(peer peers.Peer, peerID, infoHash [20]byte) (*Client, error) {
@@ -19,4 +22,24 @@ func New(peer peers.Peer, peerID, infoHash [20]byte) (*Client, error) {
 		log.Println("Unable to establish tcp connection...")
 		return nil, err
 	}
+}
+
+func (c *Client) SendUnchoke() error {
+	msg := message.Message{ID: message.MsgUnchoke}
+	_, err := c.Conn.Write(msg.Serialize())
+	return err
+}
+
+func (c *Client) SendInterested() error {
+	msg := message.Message{ID: message.MsgInterested}
+	_, err := c.Conn.Write(msg.Serialize())
+	return err
+}
+
+func (c *Client) Read() (*message.Message, error) {
+	msg, err := message.Read(c.Conn)
+	if err != nil {
+		return nil, err
+	}
+	return msg, nil
 }
